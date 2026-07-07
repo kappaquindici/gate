@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controllo Accessi</title>
+  <style>
+    :root {
+      --bg-start: #0f172a;
+      --bg-end: #1e293b;
+      --panel: rgba(15, 23, 42, 0.75);
+      --accent: #f59e0b;
+      --accent-hover: #fbbf24;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top, rgba(245, 158, 11, 0.2), transparent 30%),
+        linear-gradient(135deg, var(--bg-start), var(--bg-end));
+    }
+
+    main {
+      width: min(92vw, 420px);
+      padding: 40px 32px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      border-radius: 24px;
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.45);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 2rem;
+    }
+
+    p {
+      margin: 0 0 28px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .actions {
+      display: grid;
+      gap: 14px;
+    }
+
+    .form {
+      display: grid;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    input {
+      width: 100%;
+      padding: 16px 18px;
+      border: 1px solid rgba(148, 163, 184, 0.25);
+      border-radius: 16px;
+      background: rgba(15, 23, 42, 0.55);
+      color: var(--text);
+      font-size: 1rem;
+      outline: none;
+    }
+
+    input::placeholder {
+      color: var(--muted);
+    }
+
+    button {
+      width: 100%;
+      padding: 18px 24px;
+      border: 0;
+      border-radius: 999px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #111827;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+      box-shadow: 0 12px 28px rgba(245, 158, 11, 0.35);
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.7;
+    }
+
+    #status {
+      min-height: 24px;
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    #controls {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Controllo accessi</h1>
+    <p id="subtitle">Accedi per eseguire l'automazione Playwright dal backend Java.</p>
+
+    <div id="loginSection">
+      <div class="form">
+        <input id="username" type="text" placeholder="Username" autocomplete="username">
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password">
+      </div>
+      <button id="loginButton" type="button">Accedi</button>
+    </div>
+
+    <div id="controls">
+      <div class="actions">
+        <button data-target="portone" type="button">Apri portone</button>
+        <button data-target="cancello-entrata" type="button">Apri cancello entrata</button>
+      </div>
+    </div>
+
+    <div id="status" aria-live="polite"></div>
+  </main>
+
+  <script>
+    const loginSection = document.getElementById("loginSection");
+    const controls = document.getElementById("controls");
+    const subtitle = document.getElementById("subtitle");
+    const usernameInput = document.getElementById("username");
+    const passwordInput = document.getElementById("password");
+    const loginButton = document.getElementById("loginButton");
+    const buttons = document.querySelectorAll("button[data-target]");
+    const status = document.getElementById("status");
+    const tokenStorageKey = "gate_jwt_token";
+
+    function getToken() {
+      return localStorage.getItem(tokenStorageKey);
+    }
+
+    function setAuthenticatedState(isAuthenticated) {
+      loginSection.style.display = isAuthenticated ? "none" : "block";
+      controls.style.display = isAuthenticated ? "block" : "none";
+      subtitle.textContent = isAuthenticated
+        ? "Scegli quale accesso aprire."
+        : "Accedi per eseguire l'automazione Playwright dal backend Java.";
+    }
+
+    async function login() {
+      loginButton.disabled = true;
+      status.textContent = "Autenticazione in corso...";
+
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            username: usernameInput.value,
+            password: passwordInput.value
+          })
+        });
+
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json")
+          ? await response.json()
+          : await response.text();
+
+        if (!response.ok) {
+          throw new Error(typeof payload === "string" ? payload : "Login non riuscito.");
+        }
+
+        localStorage.setItem(tokenStorageKey, payload.token);
+        setAuthenticatedState(true);
+        status.textContent = "Autenticazione completata.";
+        passwordInput.value = "";
+      } catch (error) {
+        localStorage.removeItem(tokenStorageKey);
+        setAuthenticatedState(false);
+        status.textContent = error.message || "Errore di autenticazione.";
+      } finally {
+        loginButton.disabled = false;
+      }
+    }
+
+    async function runCommand(target) {
+      buttons.forEach((currentButton) => {
+        currentButton.disabled = true;
+      });
+
+      status.textContent = "Invio comando in corso...";
+
+      try {
+        const token = getToken();
+        if (!token) {
+          throw new Error("Sessione non presente. Effettua di nuovo il login.");
+        }
+
+        const response = await fetch(`/api/gate/open?target=${encodeURIComponent(target)}`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const message = await response.text();
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem(tokenStorageKey);
+            setAuthenticatedState(false);
+          }
+          throw new Error(message || "Errore durante l'invio del comando.");
+        }
+
+        status.textContent = message;
+      } catch (error) {
+        status.textContent = error.message || "Errore inatteso.";
+      } finally {
+        buttons.forEach((currentButton) => {
+          currentButton.disabled = false;
+        });
+      }
+    }
+
+    loginButton.addEventListener("click", login);
+    passwordInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        login();
+      }
+    });
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        runCommand(button.dataset.target);
+      });
+    });
+
+    setAuthenticatedState(Boolean(getToken()));
+  </script>
+</body>
+</html>
