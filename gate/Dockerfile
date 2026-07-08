@@ -1,9 +1,4 @@
-# syntax=docker/dockerfile:1.7
-
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
-
-FROM --platform=${BUILDPLATFORM} maven:3.9.11-eclipse-temurin-21 AS build
+FROM maven:3.9.11-eclipse-temurin-21 AS build
 
 WORKDIR /workspace
 
@@ -12,13 +7,13 @@ COPY mvnw mvnw.cmd pom.xml ./
 
 RUN chmod +x mvnw
 
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -DskipTests dependency:go-offline
+RUN ./mvnw -DskipTests dependency:go-offline
 
 COPY src/ src/
 
-RUN --mount=type=cache,target=/root/.m2 ./mvnw -DskipTests package
+RUN ./mvnw -DskipTests package
 
-FROM --platform=${TARGETPLATFORM} mcr.microsoft.com/playwright/java:v1.61.0-jammy
+FROM mcr.microsoft.com/playwright/java:v1.61.0-jammy
 
 WORKDIR /app
 
