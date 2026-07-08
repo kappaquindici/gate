@@ -29,6 +29,13 @@ fi
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 CANDIDATE_TAG="${CANDIDATE_TAG:-candidate-$GIT_SHA-$ARCH}"
 PROMOTE_TAGS="${PROMOTE_TAGS:-latest $ARCH}"
+STACK_NAME="${STACK_NAME:-gate}"
+STACK_FILE="${STACK_FILE:-stack.yml}"
+DEPLOY_TAG="${DEPLOY_TAG:-${PROMOTE_TAGS%% *}}"
+
+if [ -z "$DEPLOY_TAG" ]; then
+  DEPLOY_TAG="$CANDIDATE_TAG"
+fi
 
 ######################
 # Supporting functions
@@ -102,3 +109,6 @@ if [ "${DOCKER_CLEANUP:-0}" = "1" ]; then
   docker image prune -f
   docker container prune -f
 fi
+
+export STACK_IMAGE="${IMAGE_PREFIX}${IMAGE_NAME}:${DEPLOY_TAG}"
+docker stack deploy -c "$STACK_FILE" "$STACK_NAME"

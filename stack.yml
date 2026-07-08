@@ -1,0 +1,26 @@
+version: "3.8"
+
+services:
+  gate:
+    image: ${STACK_IMAGE}
+    deploy:
+      replicas: 1
+      labels:
+        traefik.enable: "true"
+        traefik.http.routers.gate.rule: "Host(`gate.no-ip.dynu.net`) && PathPrefix(`/`)"
+        traefik.http.routers.gate.entrypoints: websecure
+        traefik.http.routers.gate.tls: "true"
+        traefik.http.routers.gate.tls.certresolver: myresolver
+        traefik.http.routers.gate_http.rule: "Host(`gate.no-ip.dynu.net`) && PathPrefix(`/`)"
+        traefik.http.routers.gate_http.entrypoints: web
+        traefik.http.routers.gate_http.middlewares: gate-redirectscheme
+        traefik.http.middlewares.gate-redirectscheme.redirectscheme.scheme: https
+        traefik.http.middlewares.gate-redirectscheme.redirectscheme.permanent: "true"
+        traefik.http.services.gate-service.loadbalancer.server.port: 8080
+    restart: unless-stopped
+    networks:
+      - traefik_backends
+
+networks:
+  traefik_backends:
+    external: true
