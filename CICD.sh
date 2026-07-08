@@ -29,20 +29,14 @@ fi
 GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo local)"
 CANDIDATE_TAG="${CANDIDATE_TAG:-candidate-$GIT_SHA-$ARCH}"
 PROMOTE_TAGS="${PROMOTE_TAGS:-latest $ARCH}"
-MVN_CMD="${MVN_CMD:-./mvnw}"
 
 ######################
 # Supporting functions
 
-build_application() {
-  echo "[ci] build applicazione Java"
-  chmod +x "$MVN_CMD"
-  "$MVN_CMD" clean test package
-}
-
 build_candidate_image() {
   local image_ref="${IMAGE_PREFIX}${IMAGE_NAME}:${CANDIDATE_TAG}"
   echo "[ci] build immagine Docker ${image_ref}"
+  echo "[ci] compilazione applicativa eseguita dentro il Dockerfile"
   docker build -t "$image_ref" -f "$DOCKERFILE_PATH" .
 }
 
@@ -91,7 +85,6 @@ fi
 echo "[ci] architettura rilevata: $ARCH_RAW -> $ARCH"
 echo "[ci] candidate tag: $CANDIDATE_TAG"
 
-build_application
 build_candidate_image
 promote_candidate_image
 
